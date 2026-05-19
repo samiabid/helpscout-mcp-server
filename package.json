@@ -1,0 +1,39 @@
+{
+  "name": "helpscout-mcp-server",
+  "version": "0.1.0",
+  "description": "Model Context Protocol server for the Help Scout Mailbox API.",
+  "license": "MIT",
+  "type": "module",
+  "bin": {
+    "helpscout-mcp": "./dist/stdio.js"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "dev:stdio": "tsx src/stdio.ts",
+    "dev:http": "tsx src/http.ts",
+    "start": "node dist/http.js",
+    "start:stdio": "node dist/stdio.js",
+    "start:http": "node dist/http.js",
+    "typecheck": "tsc --noEmit -p tsconfig.test.json",
+    "test": "vitest run",
+    "test:live": "HELPSCOUT_RUN_LIVE_TESTS=true vitest run test/live.test.ts"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.21.0",
+    "cors": "^2.8.5",
+    "express": "^4.19.2",
+    "zod": "^3.25.76"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.17",
+    "@types/express": "^4.17.21",
+    "@types/node": "^22.10.2",
+    "nock": "^13.5.6",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2",
+    "vitest": "^4.1.6"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
