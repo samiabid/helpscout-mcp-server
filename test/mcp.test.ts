@@ -27,10 +27,11 @@ describe("MCP server", () => {
     const { tools } = await client.listTools();
     const names = tools.map((tool) => tool.name).sort();
 
-    expect(names).toEqual([
-      "helpscout_create_draft_reply",
-      "helpscout_create_note",
-      "helpscout_get_conversation",
+	    expect(names).toEqual([
+	      "helpscout_add_conversation_tags",
+	      "helpscout_create_draft_reply",
+	      "helpscout_create_note",
+	      "helpscout_get_conversation",
       "helpscout_get_inbox",
       "helpscout_get_saved_reply",
       "helpscout_list_inbox_fields",
@@ -39,13 +40,15 @@ describe("MCP server", () => {
       "helpscout_list_saved_replies",
       "helpscout_list_tags",
       "helpscout_list_threads",
-      "helpscout_list_users",
-      "helpscout_patch_conversation",
-      "helpscout_search_conversations",
-      "helpscout_set_conversation_tags",
-      "helpscout_update_custom_fields",
-      "helpscout_whoami"
-    ]);
+	      "helpscout_list_users",
+	      "helpscout_patch_conversation",
+	      "helpscout_remove_conversation_tags",
+	      "helpscout_search_conversations",
+	      "helpscout_set_conversation_tags",
+	      "helpscout_snooze_conversation",
+	      "helpscout_update_custom_fields",
+	      "helpscout_whoami"
+	    ]);
   });
 
   it("exposes draft reply schema without a draft override field", async () => {
@@ -90,7 +93,7 @@ describe("MCP server", () => {
     expect(JSON.stringify(result.structuredContent)).toContain("WritesDisabled");
   });
 
-  it("coerces string IDs and always sends draft replies to Help Scout with draft=true", async () => {
+	  it("coerces string IDs and always sends draft replies to Help Scout with draft=true", async () => {
     nock.disableNetConnect();
     const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
     const server = createHelpScoutMcpServer({ config: config(true) });
@@ -131,9 +134,103 @@ describe("MCP server", () => {
 
     expect(result.isError).not.toBe(true);
     expect(nock.isDone()).toBe(true);
-  });
+	  });
 
-  it("validates tool inputs before a handler runs", async () => {
+	  it("snoozes conversations with unsnooze-on-reply enabled by default", async () => {
+	    nock.disableNetConnect();
+	    const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+	    const server = createHelpScoutMcpServer({ config: config(true) });
+	    const client = new Client({ name: "test-client", version: "0.0.0" });
+	    clientsToClose.push(client);
+
+	    nock("https://api.helpscout.test")
+	      .post("/v2/oauth2/token")
+	      .reply(200, {
+	        token_type: "bearer",
+	        access_token: "snooze-token",
+	        expires_in: 172_800
+	      })
+	      .put("/v2/conversations/123/snooze", (body) => {
+	        expect(body).toEqual({
+	          snoozedUntil: "2026-06-01T12:00:00Z",
+	          unsnoozeOnCustomerReply: true
+	        });
+	        return true;
+	      })
+	      .reply(204);
+
+	    await Promise.all([server.connect(serverTransport), client.connect(clientTransport)]);
+
+	    const result = await client.callTool({
+	      name: "helpscout_snooze_conversation",
+	      arguments: {
+	        conversationId: "123",
+	        snoozedUntil: "2026-06-01T12:00:00Z"
+	      }
+	    });
+
+	    expect(result.isError).not.toBe(true);
+	    expect(nock.isDone()).toBe(true);
+	  });
+
+	  it("adds and removes conversation tags while preserving other tags", async () => {
+	    nock.disableNetConnect();
+	    const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+	    const server = createHelpScoutMcpServer({ config: config(true) });
+	    const client = new Client({ name: "test-client", version: "0.0.0" });
+	    clientsToClose.push(client);
+
+	    nock("https://api.helpscout.test")
+	      .post("/v2/oauth2/token")
+	      .reply(200, {
+	        token_type: "bearer",
+	        access_token: "tags-token",
+	        expires_in: 172_800
+	      })
+	      .get("/v2/conversations/123")
+	      .reply(200, {
+	        id: 123,
+	        tags: [{ tag: "vip" }, { tag: "billing" }]
+	      })
+	      .put("/v2/conversations/123/tags", (body) => {
+	        expect(body).toEqual({ tags: ["vip", "billing", "urgent"] });
+	        return true;
+	      })
+	      .reply(204)
+	      .get("/v2/conversations/123")
+	      .reply(200, {
+	        id: 123,
+	        tags: [{ tag: "vip" }, { tag: "billing" }, { tag: "urgent" }]
+	      })
+	      .put("/v2/conversations/123/tags", (body) => {
+	        expect(body).toEqual({ tags: ["vip", "urgent"] });
+	        return true;
+	      })
+	      .reply(204);
+
+	    await Promise.all([server.connect(serverTransport), client.connect(clientTransport)]);
+
+	    const addResult = await client.callTool({
+	      name: "helpscout_add_conversation_tags",
+	      arguments: {
+	        conversationId: "123",
+	        tags: ["urgent", "VIP"]
+	      }
+	    });
+	    const removeResult = await client.callTool({
+	      name: "helpscout_remove_conversation_tags",
+	      arguments: {
+	        conversationId: "123",
+	        tags: ["billing"]
+	      }
+	    });
+
+	    expect(addResult.isError).not.toBe(true);
+	    expect(removeResult.isError).not.toBe(true);
+	    expect(nock.isDone()).toBe(true);
+	  });
+
+	  it("validates tool inputs before a handler runs", async () => {
     const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
     const server = createHelpScoutMcpServer({ config: config(false) });
     const client = new Client({ name: "test-client", version: "0.0.0" });

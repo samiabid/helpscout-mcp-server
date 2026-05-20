@@ -12,6 +12,9 @@ const WRITE_TOOLS = new Set([
   "helpscout_create_draft_reply",
   "helpscout_create_note",
   "helpscout_patch_conversation",
+  "helpscout_snooze_conversation",
+  "helpscout_add_conversation_tags",
+  "helpscout_remove_conversation_tags",
   "helpscout_set_conversation_tags",
   "helpscout_update_custom_fields"
 ]);

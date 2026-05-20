@@ -27,6 +27,7 @@ const fieldValue = z.object({
   id: positiveInt,
   value: z.string()
 });
+const tagNames = z.array(z.string().trim().min(1)).min(1);
 
 const paginationShape = {
   page: z.number().int().min(1).optional(),
@@ -286,13 +287,67 @@ export function registerHelpScoutTools(options: RegisterHelpScoutToolsOptions): 
   );
 
   server.registerTool(
+    "helpscout_snooze_conversation",
+    {
+      title: "Snooze Help Scout Conversation",
+      description:
+        "Snooze a Help Scout conversation until an ISO 8601 timestamp. Defaults to unsnoozing on customer reply.",
+      inputSchema: {
+        conversationId: positiveInt,
+        snoozedUntil: z.string().min(1).describe("Future ISO 8601 timestamp, for example 2026-06-01T12:00:00Z."),
+        unsnoozeOnCustomerReply: z.boolean().optional()
+      },
+      annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: true }
+    },
+    async (args) =>
+      runWrite(enableWrites, () =>
+        client.snoozeConversation(args.conversationId, {
+          snoozedUntil: args.snoozedUntil,
+          unsnoozeOnCustomerReply: args.unsnoozeOnCustomerReply ?? true
+        })
+      )
+  );
+
+  server.registerTool(
+    "helpscout_add_conversation_tags",
+    {
+      title: "Add Help Scout Conversation Tags",
+      description:
+        "Add one or more tags to a Help Scout conversation while preserving any existing tags not mentioned.",
+      inputSchema: {
+        conversationId: positiveInt,
+        tags: tagNames
+      },
+      annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: true }
+    },
+    async ({ conversationId, tags }) =>
+      runWrite(enableWrites, () => modifyConversationTags(client, conversationId, tags, "add"))
+  );
+
+  server.registerTool(
+    "helpscout_remove_conversation_tags",
+    {
+      title: "Remove Help Scout Conversation Tags",
+      description:
+        "Remove one or more tags from a Help Scout conversation while preserving all other existing tags.",
+      inputSchema: {
+        conversationId: positiveInt,
+        tags: tagNames
+      },
+      annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: true }
+    },
+    async ({ conversationId, tags }) =>
+      runWrite(enableWrites, () => modifyConversationTags(client, conversationId, tags, "remove"))
+  );
+
+  server.registerTool(
     "helpscout_set_conversation_tags",
     {
       title: "Set Help Scout Conversation Tags",
       description: "Replace the entire tag list on a Help Scout conversation.",
       inputSchema: {
         conversationId: positiveInt,
-        tags: z.array(z.string())
+        tags: z.array(z.string().trim().min(1))
       },
       annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: true }
     },
@@ -337,6 +392,28 @@ async function runTool<T>(operation: () => Promise<T>): Promise<CallToolResult> 
   } catch (error) {
     return errorResult(normalizeError(error));
   }
+}
+
+async function modifyConversationTags(
+  client: HelpScoutClient,
+  conversationId: number,
+  tags: string[],
+  mode: "add" | "remove"
+): Promise<unknown> {
+  const conversation = await client.getConversation(conversationId);
+  const previousTags = extractConversationTagNames(conversation.data);
+  const nextTags = mode === "add" ? addTags(previousTags, tags) : removeTags(previousTags, tags);
+  const response = await client.setConversationTags(conversationId, nextTags);
+
+  return {
+    ...response,
+    requestCost: conversation.requestCost + response.requestCost,
+    data: {
+      previousTags,
+      tags: nextTags,
+      changedTags: mode === "add" ? addedTags(previousTags, nextTags) : removedTags(previousTags, nextTags)
+    }
+  };
 }
 
 function jsonResult(value: unknown): CallToolResult {
@@ -421,6 +498,64 @@ function compactRecord<T extends Record<string, unknown>>(record: T): Record<str
   }
 
   return compacted;
+}
+
+function extractConversationTagNames(conversation: unknown): string[] {
+  if (!isRecord(conversation) || !Array.isArray(conversation.tags)) {
+    return [];
+  }
+
+  const tags: string[] = [];
+  for (const tag of conversation.tags) {
+    if (typeof tag === "string") {
+      tags.push(tag);
+    } else if (isRecord(tag) && typeof tag.tag === "string") {
+      tags.push(tag.tag);
+    }
+  }
+
+  return uniqueTags(tags);
+}
+
+function addTags(currentTags: string[], requestedTags: string[]): string[] {
+  return uniqueTags([...currentTags, ...requestedTags]);
+}
+
+function removeTags(currentTags: string[], requestedTags: string[]): string[] {
+  const requestedKeys = new Set(requestedTags.map(tagKey));
+  return currentTags.filter((tag) => !requestedKeys.has(tagKey(tag)));
+}
+
+function addedTags(previousTags: string[], nextTags: string[]): string[] {
+  const previousKeys = new Set(previousTags.map(tagKey));
+  return nextTags.filter((tag) => !previousKeys.has(tagKey(tag)));
+}
+
+function removedTags(previousTags: string[], nextTags: string[]): string[] {
+  const nextKeys = new Set(nextTags.map(tagKey));
+  return previousTags.filter((tag) => !nextKeys.has(tagKey(tag)));
+}
+
+function uniqueTags(tags: string[]): string[] {
+  const seen = new Set<string>();
+  const unique: string[] = [];
+
+  for (const tag of tags) {
+    const trimmed = tag.trim();
+    const key = tagKey(trimmed);
+    if (!key || seen.has(key)) {
+      continue;
+    }
+
+    seen.add(key);
+    unique.push(trimmed);
+  }
+
+  return unique;
+}
+
+function tagKey(tag: string): string {
+  return tag.trim().toLowerCase();
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

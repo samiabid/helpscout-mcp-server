@@ -17,7 +17,9 @@ Write tools, disabled by default:
 
 - Create a **draft** customer reply on an existing conversation
 - Create an internal note
+- Snooze a conversation
 - Patch safe conversation fields
+- Add or remove conversation tags while preserving other tags
 - Replace conversation tags
 - Replace conversation custom-field values
 
@@ -219,10 +221,15 @@ When writes are enabled, the exposed write tools are:
 - `helpscout_create_draft_reply`
 - `helpscout_create_note`
 - `helpscout_patch_conversation`
+- `helpscout_snooze_conversation`
+- `helpscout_add_conversation_tags`
+- `helpscout_remove_conversation_tags`
 - `helpscout_set_conversation_tags`
 - `helpscout_update_custom_fields`
 
 `helpscout_create_draft_reply` requires the `customerId` from the conversation being replied to and sends `customer: { id }` plus `draft: true` to Help Scout. This server does not expose a send-reply tool.
+
+`helpscout_add_conversation_tags` and `helpscout_remove_conversation_tags` fetch the current conversation tags first, then preserve all unmentioned tags when writing the updated tag list back to Help Scout.
 
 ## Development
 
@@ -266,7 +273,7 @@ npm run test:live
 - Do not commit `.env` files or Help Scout credentials.
 - Use a long random `HELPSCOUT_MCP_OAUTH_SECRET`.
 - Use a separate random `HELPSCOUT_MCP_OAUTH_PASSWORD`.
-- Keep writes off unless you explicitly need draft/note/tag/custom-field mutation.
+- Keep writes off unless you explicitly need draft/note/snooze/tag/custom-field mutation.
 - Rotate credentials if they are ever pasted into logs, issues, screenshots, or chats.
 - OAuth mode defaults to Dynamic Client Registration. Client ID Metadata Documents are disabled unless `HELPSCOUT_MCP_OAUTH_ENABLE_CIMD=true`.
 - Do not set `HELPSCOUT_MCP_ALLOW_STATIC_TOKEN_WITH_OAUTH=true` unless you intentionally need the legacy bearer-token path alongside OAuth.

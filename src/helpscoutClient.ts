@@ -219,6 +219,10 @@ export class HelpScoutClient {
     return this.patch(`conversations/${conversationId}`, payload);
   }
 
+  snoozeConversation(conversationId: number, payload: Record<string, unknown>): Promise<HelpScoutResponse> {
+    return this.put(`conversations/${conversationId}/snooze`, payload);
+  }
+
   setConversationTags(conversationId: number, tags: string[]): Promise<HelpScoutResponse> {
     return this.put(`conversations/${conversationId}/tags`, { tags });
   }
