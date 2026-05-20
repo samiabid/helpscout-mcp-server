@@ -10,7 +10,13 @@ export interface RegisterHelpScoutToolsOptions {
   enableWrites: boolean;
 }
 
-const positiveInt = z.number().int().positive();
+const positiveInt = z.preprocess((value) => {
+  if (typeof value === "string" && /^\d+$/.test(value.trim())) {
+    return Number(value);
+  }
+
+  return value;
+}, z.number().int().positive());
 const status = z.enum(["active", "closed", "inbox_predefined", "open", "pending", "spam"]);
 const attachment = z.object({
   fileName: z.string().min(1),

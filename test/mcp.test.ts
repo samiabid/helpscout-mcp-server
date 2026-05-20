@@ -90,7 +90,7 @@ describe("MCP server", () => {
     expect(JSON.stringify(result.structuredContent)).toContain("WritesDisabled");
   });
 
-  it("always sends draft replies to Help Scout with draft=true", async () => {
+  it("coerces string IDs and always sends draft replies to Help Scout with draft=true", async () => {
     nock.disableNetConnect();
     const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
     const server = createHelpScoutMcpServer({ config: config(true) });
@@ -122,8 +122,8 @@ describe("MCP server", () => {
     const result = await client.callTool({
       name: "helpscout_create_draft_reply",
       arguments: {
-        conversationId: 123,
-        customerId: 777,
+        conversationId: "123",
+        customerId: "777",
         text: "Please review this before sending.",
         cc: ["copy@example.com"]
       }
