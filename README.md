@@ -268,6 +268,8 @@ npm run test:live
 - Use a separate random `HELPSCOUT_MCP_OAUTH_PASSWORD`.
 - Keep writes off unless you explicitly need draft/note/tag/custom-field mutation.
 - Rotate credentials if they are ever pasted into logs, issues, screenshots, or chats.
+- OAuth mode defaults to Dynamic Client Registration. Client ID Metadata Documents are disabled unless `HELPSCOUT_MCP_OAUTH_ENABLE_CIMD=true`.
+- Do not set `HELPSCOUT_MCP_ALLOW_STATIC_TOKEN_WITH_OAUTH=true` unless you intentionally need the legacy bearer-token path alongside OAuth.
 
 ## References
 

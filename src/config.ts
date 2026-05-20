@@ -13,6 +13,8 @@ export interface HelpScoutMcpConfig {
   oauthPublicUrl?: string;
   oauthSecret?: string;
   oauthPassword?: string;
+  oauthEnableClientMetadataDocuments: boolean;
+  allowStaticTokenWithOAuth: boolean;
   logLevel: LogLevel;
 }
 
@@ -26,6 +28,7 @@ export function loadConfig(
   const oauthEnabled = parseBoolean(env.HELPSCOUT_MCP_OAUTH_ENABLED, false);
   const oauthSecret = env.HELPSCOUT_MCP_OAUTH_SECRET?.trim() || undefined;
   const oauthPassword = env.HELPSCOUT_MCP_OAUTH_PASSWORD?.trim() || undefined;
+  const allowStaticTokenWithOAuth = parseBoolean(env.HELPSCOUT_MCP_ALLOW_STATIC_TOKEN_WITH_OAUTH, false);
 
   if (mode === "http" && !oauthEnabled && !httpToken) {
     throw new Error("HELPSCOUT_MCP_HTTP_TOKEN is required in HTTP mode.");
@@ -55,6 +58,8 @@ export function loadConfig(
     oauthPublicUrl: optionalUrl(env.HELPSCOUT_MCP_PUBLIC_URL),
     oauthSecret,
     oauthPassword,
+    oauthEnableClientMetadataDocuments: parseBoolean(env.HELPSCOUT_MCP_OAUTH_ENABLE_CIMD, false),
+    allowStaticTokenWithOAuth,
     logLevel: parseLogLevel(env.HELPSCOUT_MCP_LOG_LEVEL || "info")
   };
 }

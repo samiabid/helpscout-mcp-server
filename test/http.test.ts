@@ -116,8 +116,48 @@ describe("HTTP transport", () => {
       registration_endpoint: `${baseUrl}/register`,
       token_endpoint_auth_methods_supported: ["none"],
       code_challenge_methods_supported: ["S256"],
-      client_id_metadata_document_supported: true
+      client_id_metadata_document_supported: false
     });
+  });
+
+  it("rate-limits repeated OAuth authorization failures", async () => {
+    const app = createHttpApp(oauthConfig());
+    const server = app.listen(0, "127.0.0.1");
+    servers.push(server);
+    await onceListening(server);
+    const { port } = server.address() as AddressInfo;
+    const baseUrl = `http://127.0.0.1:${port}`;
+    const redirectUri = `${baseUrl}/callback`;
+    const registrationResponse = await fetch(`${baseUrl}/register`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        client_name: "Claude test client",
+        redirect_uris: [redirectUri]
+      })
+    });
+    const registration = await registrationResponse.json() as { client_id: string };
+    const challenge = createHash("sha256").update("test-verifier-with-enough-entropy").digest("base64url");
+    const body = new URLSearchParams({
+      response_type: "code",
+      client_id: registration.client_id,
+      redirect_uri: redirectUri,
+      code_challenge: challenge,
+      code_challenge_method: "S256",
+      password: "wrong-password"
+    });
+
+    let response: Response | undefined;
+    for (let index = 0; index < 11; index += 1) {
+      response = await fetch(`${baseUrl}/authorize`, {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body
+      });
+    }
+
+    expect(response?.status).toBe(429);
+    expect(response?.headers.get("retry-after")).toBeTruthy();
   });
 
   it("runs a complete OAuth flow and uses the access token for MCP", async () => {
@@ -225,6 +265,25 @@ describe("HTTP transport", () => {
       `${baseUrl}/.well-known/oauth-protected-resource/mcp`
     );
   });
+
+  it("does not accept the static HTTP token when OAuth is enabled by default", async () => {
+    const app = createHttpApp(oauthConfig({ HELPSCOUT_MCP_HTTP_TOKEN: "legacy-token" }));
+    const server = app.listen(0, "127.0.0.1");
+    servers.push(server);
+    await onceListening(server);
+    const { port } = server.address() as AddressInfo;
+
+    const response = await fetch(`http://127.0.0.1:${port}/mcp`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: "Bearer legacy-token"
+      },
+      body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/list" })
+    });
+
+    expect(response.status).toBe(401);
+  });
 });
 
 function config() {
@@ -239,7 +298,7 @@ function config() {
   );
 }
 
-function oauthConfig() {
+function oauthConfig(extraEnv: NodeJS.ProcessEnv = {}) {
   return loadConfig(
     {
       HELPSCOUT_APP_ID: "app-id",
@@ -247,7 +306,8 @@ function oauthConfig() {
       HELPSCOUT_API_BASE_URL: "https://api.helpscout.test/v2",
       HELPSCOUT_MCP_OAUTH_ENABLED: "true",
       HELPSCOUT_MCP_OAUTH_SECRET: "test-oauth-secret",
-      HELPSCOUT_MCP_OAUTH_PASSWORD: "test-oauth-password"
+      HELPSCOUT_MCP_OAUTH_PASSWORD: "test-oauth-password",
+      ...extraEnv
     },
     "http"
   );

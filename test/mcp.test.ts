@@ -59,11 +59,13 @@ describe("MCP server", () => {
     const { tools } = await client.listTools();
     const names = tools.map((tool) => tool.name);
     const draftTool = tools.find((tool) => tool.name === "helpscout_create_draft_reply");
+    const patchTool = tools.find((tool) => tool.name === "helpscout_patch_conversation");
 
     expect(names).not.toContain("helpscout_create_reply_thread");
     expect(names).not.toContain("helpscout_create_conversation");
     expect(draftTool).toBeTruthy();
     expect(draftTool?.inputSchema.properties).not.toHaveProperty("draft");
+    expect((patchTool?.inputSchema.properties?.path as { enum?: string[] } | undefined)?.enum).not.toContain("/draft");
   });
 
   it("rejects write tools when HELPSCOUT_MCP_ENABLE_WRITES is false", async () => {

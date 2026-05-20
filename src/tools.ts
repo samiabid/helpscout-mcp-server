@@ -266,7 +266,7 @@ export function registerHelpScoutTools(options: RegisterHelpScoutToolsOptions): 
       inputSchema: {
         conversationId: positiveInt,
         op: z.enum(["add", "move", "remove", "replace"]),
-        path: z.enum(["/assignTo", "/draft", "/mailboxId", "/primaryCustomer.id", "/status", "/subject"]),
+        path: z.enum(["/assignTo", "/mailboxId", "/primaryCustomer.id", "/status", "/subject"]),
         value: z.unknown().optional()
       },
       annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true }

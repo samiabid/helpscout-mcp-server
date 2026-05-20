@@ -80,7 +80,7 @@ export class OAuthProvider {
       grant_types_supported: ["authorization_code", "refresh_token"],
       token_endpoint_auth_methods_supported: ["none"],
       code_challenge_methods_supported: ["S256"],
-      client_id_metadata_document_supported: true
+      client_id_metadata_document_supported: this.config.oauthEnableClientMetadataDocuments
     };
   }
 
@@ -177,7 +177,12 @@ export class OAuthProvider {
   authenticateMcpRequest = (req: Request, res: Response, next: NextFunction): void => {
     const token = extractBearer(req);
 
-    if (token && this.config.httpToken && token === this.config.httpToken) {
+    if (
+      token &&
+      this.config.allowStaticTokenWithOAuth &&
+      this.config.httpToken &&
+      token === this.config.httpToken
+    ) {
       next();
       return;
     }
@@ -319,7 +324,7 @@ export class OAuthProvider {
       return registered.redirectUris.some((candidate) => redirectUriMatches(candidate, redirectUri));
     }
 
-    if (!clientId.startsWith("https://")) {
+    if (!this.config.oauthEnableClientMetadataDocuments || !metadataDocumentUrlAllowed(clientId)) {
       return false;
     }
 
@@ -544,6 +549,38 @@ function redirectUriMatches(registered: string, requested: string): boolean {
 
 function isLoopback(url: URL): boolean {
   return ["localhost", "127.0.0.1", "::1", "[::1]"].includes(url.hostname);
+}
+
+function metadataDocumentUrlAllowed(value: string): boolean {
+  try {
+    const url = new URL(value);
+    return url.protocol === "https:" && !url.username && !url.password && !isPrivateHost(url.hostname);
+  } catch {
+    return false;
+  }
+}
+
+function isPrivateHost(hostname: string): boolean {
+  const host = hostname.toLowerCase();
+  if (host === "localhost" || host === "::1" || host === "[::1]") {
+    return true;
+  }
+
+  if (host.startsWith("127.") || host.startsWith("10.") || host.startsWith("169.254.")) {
+    return true;
+  }
+
+  if (host.startsWith("192.168.")) {
+    return true;
+  }
+
+  const private172Match = host.match(/^172\.(\d+)\./);
+  if (private172Match) {
+    const secondOctet = Number(private172Match[1]);
+    return secondOctet >= 16 && secondOctet <= 31;
+  }
+
+  return false;
 }
 
 function extractBearer(req: Request): string | undefined {
