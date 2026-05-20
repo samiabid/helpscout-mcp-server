@@ -217,6 +217,7 @@ export function registerHelpScoutTools(options: RegisterHelpScoutToolsOptions): 
         "Create a draft customer reply on an existing Help Scout conversation. This never sends the reply.",
       inputSchema: {
         conversationId: positiveInt,
+        customerId: positiveInt.describe("Help Scout customer ID being replied to. Use the conversation customer ID."),
         text: z.string().min(1),
         status: status.optional(),
         user: positiveInt.optional(),
@@ -233,6 +234,7 @@ export function registerHelpScoutTools(options: RegisterHelpScoutToolsOptions): 
       runWrite(enableWrites, () =>
         client.createReplyThread(args.conversationId, {
           ...compactRecord(stripToolOnlyArgs(args)),
+          customer: { id: args.customerId },
           draft: true
         })
       )
@@ -399,7 +401,7 @@ function stripPagingControlArgs(args: Record<string, unknown>): Record<string, u
 }
 
 function stripToolOnlyArgs<T extends Record<string, unknown>>(args: T): Record<string, unknown> {
-  const { conversationId: _conversationId, mailboxId: _mailboxId, ...payload } = args;
+  const { conversationId: _conversationId, customerId: _customerId, mailboxId: _mailboxId, ...payload } = args;
   return payload;
 }
 

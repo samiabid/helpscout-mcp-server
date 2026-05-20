@@ -65,6 +65,8 @@ describe("MCP server", () => {
     expect(names).not.toContain("helpscout_create_conversation");
     expect(draftTool).toBeTruthy();
     expect(draftTool?.inputSchema.properties).not.toHaveProperty("draft");
+    expect(draftTool?.inputSchema.properties).toHaveProperty("customerId");
+    expect(draftTool?.inputSchema.required).toContain("customerId");
     expect((patchTool?.inputSchema.properties?.path as { enum?: string[] } | undefined)?.enum).not.toContain("/draft");
   });
 
@@ -106,9 +108,11 @@ describe("MCP server", () => {
         expect(body).toMatchObject({
           text: "Please review this before sending.",
           cc: ["copy@example.com"],
+          customer: { id: 777 },
           draft: true
         });
         expect(body).not.toHaveProperty("conversationId");
+        expect(body).not.toHaveProperty("customerId");
         return true;
       })
       .reply(201, undefined, { "Resource-ID": "456" });
@@ -119,6 +123,7 @@ describe("MCP server", () => {
       name: "helpscout_create_draft_reply",
       arguments: {
         conversationId: 123,
+        customerId: 777,
         text: "Please review this before sending.",
         cc: ["copy@example.com"]
       }

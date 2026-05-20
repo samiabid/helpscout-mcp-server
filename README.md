@@ -222,7 +222,7 @@ When writes are enabled, the exposed write tools are:
 - `helpscout_set_conversation_tags`
 - `helpscout_update_custom_fields`
 
-`helpscout_create_draft_reply` always sends `draft: true`; this server does not expose a send-reply tool.
+`helpscout_create_draft_reply` requires the `customerId` from the conversation being replied to and sends `customer: { id }` plus `draft: true` to Help Scout. This server does not expose a send-reply tool.
 
 ## Development
 
