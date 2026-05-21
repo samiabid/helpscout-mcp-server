@@ -183,6 +183,14 @@ export class HelpScoutClient {
     return this.get("tags", query);
   }
 
+  listCustomerProperties(): Promise<HelpScoutResponse> {
+    return this.get("customer-properties");
+  }
+
+  getCustomer(customerId: number): Promise<HelpScoutResponse> {
+    return this.get(`customers/${customerId}`);
+  }
+
   listSavedReplies(mailboxId: number, includeChatReplies?: boolean): Promise<HelpScoutResponse> {
     return this.get(`mailboxes/${mailboxId}/saved-replies`, { includeChatReplies });
   }

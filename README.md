@@ -10,7 +10,8 @@ Read tools:
 
 - List and inspect Help Scout inboxes, folders, custom fields, users, tags, and saved replies
 - Search conversations
-- Fetch a conversation and its threads
+- Fetch a conversation, its threads, and its primary customer's custom properties
+- List customer property definitions and inspect customers
 - Check the authenticated Help Scout resource owner
 
 Write tools, disabled by default:

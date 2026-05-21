@@ -134,6 +134,32 @@ export function registerHelpScoutTools(options: RegisterHelpScoutToolsOptions): 
   );
 
   server.registerTool(
+    "helpscout_list_customer_properties",
+    {
+      title: "List Help Scout Customer Properties",
+      description:
+        "List customer property definitions, which are Help Scout's customer-level custom fields.",
+      inputSchema: {},
+      annotations: { readOnlyHint: true, openWorldHint: true }
+    },
+    async () => runRead(() => client.listCustomerProperties())
+  );
+
+  server.registerTool(
+    "helpscout_get_customer",
+    {
+      title: "Get Help Scout Customer",
+      description:
+        "Get one Help Scout customer/contact by ID, including customer-level custom properties when present.",
+      inputSchema: {
+        customerId: positiveInt
+      },
+      annotations: { readOnlyHint: true, openWorldHint: true }
+    },
+    async ({ customerId }) => runRead(() => client.getCustomer(customerId))
+  );
+
+  server.registerTool(
     "helpscout_list_saved_replies",
     {
       title: "List Help Scout Saved Replies",
@@ -197,6 +223,20 @@ export function registerHelpScoutTools(options: RegisterHelpScoutToolsOptions): 
       annotations: { readOnlyHint: true, openWorldHint: true }
     },
     async ({ conversationId, embed }) => runRead(() => client.getConversation(conversationId, embed))
+  );
+
+  server.registerTool(
+    "helpscout_get_conversation_customer_properties",
+    {
+      title: "Get Conversation Customer Properties",
+      description:
+        "Get the primary customer's custom properties for a Help Scout conversation.",
+      inputSchema: {
+        conversationId: positiveInt
+      },
+      annotations: { readOnlyHint: true, openWorldHint: true }
+    },
+    async ({ conversationId }) => runRead(() => getConversationCustomerProperties(client, conversationId))
   );
 
   server.registerTool(
@@ -394,6 +434,28 @@ async function runTool<T>(operation: () => Promise<T>): Promise<CallToolResult> 
   }
 }
 
+async function getConversationCustomerProperties(
+  client: HelpScoutClient,
+  conversationId: number
+): Promise<unknown> {
+  const conversation = await client.getConversation(conversationId);
+  const customerId = extractPrimaryCustomerId(conversation.data);
+  if (!customerId) {
+    throw new Error("Conversation did not include a primary customer ID.");
+  }
+
+  const customer = await client.getCustomer(customerId);
+
+  return {
+    conversationId,
+    customerId,
+    requestCost: conversation.requestCost + customer.requestCost,
+    conversationPrimaryCustomer: isRecord(conversation.data) ? conversation.data.primaryCustomer : undefined,
+    customer: customer.data,
+    properties: extractCustomerProperties(customer.data)
+  };
+}
+
 async function modifyConversationTags(
   client: HelpScoutClient,
   conversationId: number,
@@ -414,6 +476,38 @@ async function modifyConversationTags(
       changedTags: mode === "add" ? addedTags(previousTags, nextTags) : removedTags(previousTags, nextTags)
     }
   };
+}
+
+function extractPrimaryCustomerId(conversation: unknown): number | undefined {
+  if (!isRecord(conversation)) {
+    return undefined;
+  }
+
+  const primaryCustomer = conversation.primaryCustomer;
+  if (isRecord(primaryCustomer) && typeof primaryCustomer.id === "number") {
+    return primaryCustomer.id;
+  }
+
+  const links = conversation._links;
+  if (!isRecord(links)) {
+    return undefined;
+  }
+
+  const primaryCustomerLink = links.primaryCustomer;
+  if (!isRecord(primaryCustomerLink) || typeof primaryCustomerLink.href !== "string") {
+    return undefined;
+  }
+
+  const match = primaryCustomerLink.href.match(/\/customers\/(\d+)(?:\b|$)/);
+  return match ? Number(match[1]) : undefined;
+}
+
+function extractCustomerProperties(customer: unknown): unknown[] {
+  if (!isRecord(customer) || !isRecord(customer._embedded) || !Array.isArray(customer._embedded.properties)) {
+    return [];
+  }
+
+  return customer._embedded.properties;
 }
 
 function jsonResult(value: unknown): CallToolResult {

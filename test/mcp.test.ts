@@ -32,10 +32,13 @@ describe("MCP server", () => {
 	      "helpscout_create_draft_reply",
 	      "helpscout_create_note",
 	      "helpscout_get_conversation",
-      "helpscout_get_inbox",
-      "helpscout_get_saved_reply",
-      "helpscout_list_inbox_fields",
-      "helpscout_list_inbox_folders",
+	      "helpscout_get_conversation_customer_properties",
+	      "helpscout_get_customer",
+	      "helpscout_get_inbox",
+	      "helpscout_get_saved_reply",
+	      "helpscout_list_customer_properties",
+	      "helpscout_list_inbox_fields",
+	      "helpscout_list_inbox_folders",
       "helpscout_list_inboxes",
       "helpscout_list_saved_replies",
       "helpscout_list_tags",
@@ -228,9 +231,74 @@ describe("MCP server", () => {
 	    expect(addResult.isError).not.toBe(true);
 	    expect(removeResult.isError).not.toBe(true);
 	    expect(nock.isDone()).toBe(true);
+		  });
+
+	  it("fetches customer properties from a conversation primary customer", async () => {
+	    nock.disableNetConnect();
+	    const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+	    const server = createHelpScoutMcpServer({ config: config(false) });
+	    const client = new Client({ name: "test-client", version: "0.0.0" });
+	    clientsToClose.push(client);
+
+	    nock("https://api.helpscout.test")
+	      .post("/v2/oauth2/token")
+	      .reply(200, {
+	        token_type: "bearer",
+	        access_token: "customer-properties-token",
+	        expires_in: 172_800
+	      })
+	      .get("/v2/conversations/123")
+	      .reply(200, {
+	        id: 123,
+	        primaryCustomer: {
+	          id: 777,
+	          type: "customer",
+	          email: "customer@example.com"
+	        }
+	      })
+	      .get("/v2/customers/777")
+	      .reply(200, {
+	        id: 777,
+	        firstName: "Ada",
+	        _embedded: {
+	          properties: [
+	            {
+	              type: "dropdown",
+	              slug: "plan",
+	              name: "Plan",
+	              value: "plus-option",
+	              text: "Plus"
+	            }
+	          ]
+	        }
+	      });
+
+	    await Promise.all([server.connect(serverTransport), client.connect(clientTransport)]);
+
+	    const result = await client.callTool({
+	      name: "helpscout_get_conversation_customer_properties",
+	      arguments: {
+	        conversationId: "123"
+	      }
+	    });
+
+	    expect(result.isError).not.toBe(true);
+	    expect(result.structuredContent).toMatchObject({
+	      result: {
+	        conversationId: 123,
+	        customerId: 777,
+	        properties: [
+	          {
+	            slug: "plan",
+	            text: "Plus"
+	          }
+	        ]
+	      }
+	    });
+	    expect(nock.isDone()).toBe(true);
 	  });
 
-	  it("validates tool inputs before a handler runs", async () => {
+		  it("validates tool inputs before a handler runs", async () => {
     const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
     const server = createHelpScoutMcpServer({ config: config(false) });
     const client = new Client({ name: "test-client", version: "0.0.0" });
