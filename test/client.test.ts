@@ -39,6 +39,34 @@ describe("HelpScoutClient", () => {
     expect(nock.isDone()).toBe(true);
   });
 
+  it("uses a configured API key as a bearer token without fetching OAuth tokens", async () => {
+    const client = createClient({ apiToken: "Bearer static-api-key" });
+
+    nock(origin)
+      .get("/v2/users/me")
+      .matchHeader("authorization", "Bearer static-api-key")
+      .reply(200, { id: 1 });
+
+    expect((await client.whoami()).data).toEqual({ id: 1 });
+    expect(nock.isDone()).toBe(true);
+  });
+
+  it("does not attempt OAuth refresh when a static API key receives a 401", async () => {
+    const client = createClient({ apiToken: "static-api-key" });
+
+    nock(origin)
+      .get("/v2/users/me")
+      .matchHeader("authorization", "Bearer static-api-key")
+      .reply(401, { error: "unauthorized" });
+
+    await expect(client.whoami()).rejects.toMatchObject({
+      name: "HelpScoutApiError",
+      status: 401,
+      body: { error: "unauthorized" }
+    } satisfies Partial<HelpScoutApiError>);
+    expect(nock.isDone()).toBe(true);
+  });
+
   it("refreshes the access token when the cached token is inside the safety window", async () => {
     let now = 0;
     const client = createClient({ now: () => now, tokenSafetyWindowMs: 60_000 });

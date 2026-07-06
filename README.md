@@ -35,22 +35,22 @@ Safety defaults:
 ## Requirements
 
 - Node.js 20+
-- A Help Scout app using Client Credentials auth
+- A Help Scout API key, API token, or access token that Help Scout accepts as a bearer token for the Mailbox API
 - For remote Claude/Cowork usage: a public HTTPS URL for this server
 
-Create a Help Scout app from the Help Scout developer portal. This server uses:
+The preferred setup is to provide the Help Scout token as:
 
-```text
-grant_type=client_credentials
+```bash
+HELPSCOUT_API_KEY=your_help_scout_api_key_or_access_token
 ```
 
-If Help Scout asks for a redirect URL while creating the app, you can use your eventual health URL, for example:
+The server sends that value to Help Scout as:
 
 ```text
-https://your-domain.example.com/health
+Authorization: Bearer <token>
 ```
 
-The redirect URL is not used by the Help Scout client-credentials flow.
+If your Help Scout workspace still allows custom developer apps, the older OAuth client-credentials mode is also supported with `HELPSCOUT_AUTH_MODE=oauth_client_credentials`, `HELPSCOUT_APP_ID`, and `HELPSCOUT_APP_SECRET`.
 
 ## Install
 
@@ -62,9 +62,16 @@ cp .env.example .env
 npm run build
 ```
 
-Set the required Help Scout variables:
+Set the required Help Scout credential:
 
 ```bash
+HELPSCOUT_API_KEY=your_help_scout_api_key_or_access_token
+```
+
+Optional legacy OAuth app mode:
+
+```bash
+HELPSCOUT_AUTH_MODE=oauth_client_credentials
 HELPSCOUT_APP_ID=your_help_scout_app_id
 HELPSCOUT_APP_SECRET=your_help_scout_app_secret
 ```
@@ -73,6 +80,7 @@ Useful optional variables:
 
 ```bash
 HELPSCOUT_API_BASE_URL=https://api.helpscout.net/v2
+HELPSCOUT_AUTH_MODE=
 HELPSCOUT_MCP_ENABLE_WRITES=false
 HELPSCOUT_MCP_LOG_LEVEL=info
 ```
@@ -94,8 +102,7 @@ Example local MCP config:
       "command": "node",
       "args": ["/absolute/path/to/helpscout-mcp-server/dist/stdio.js"],
       "env": {
-        "HELPSCOUT_APP_ID": "your_help_scout_app_id",
-        "HELPSCOUT_APP_SECRET": "your_help_scout_app_secret",
+        "HELPSCOUT_API_KEY": "your_help_scout_api_key_or_access_token",
         "HELPSCOUT_MCP_ENABLE_WRITES": "false"
       }
     }
@@ -194,8 +201,7 @@ Example:
 railway init -n helpscout-mcp-server
 railway add --service helpscout-mcp-server
 railway variable set -s helpscout-mcp-server -e production \
-  "HELPSCOUT_APP_ID=your_help_scout_app_id" \
-  "HELPSCOUT_APP_SECRET=your_help_scout_app_secret" \
+  "HELPSCOUT_API_KEY=your_help_scout_api_key_or_access_token" \
   "HELPSCOUT_MCP_ENABLE_WRITES=false" \
   "HELPSCOUT_MCP_OAUTH_ENABLED=true" \
   "HELPSCOUT_MCP_PUBLIC_URL=https://your-railway-domain.up.railway.app" \
@@ -263,15 +269,17 @@ npm run test:live
 ## API Notes
 
 - Help Scout API base URL: `https://api.helpscout.net/v2`
-- Help Scout token endpoint: `POST /v2/oauth2/token`
-- Access tokens are cached in memory until expiry minus a safety buffer
-- The client retries once after a `401` by fetching a fresh token
+- Preferred Help Scout auth uses `HELPSCOUT_API_KEY`, `HELPSCOUT_API_TOKEN`, or `HELPSCOUT_ACCESS_TOKEN` as a static bearer token
+- Legacy Help Scout OAuth app mode uses `POST /v2/oauth2/token` with `grant_type=client_credentials`
+- OAuth access tokens are cached in memory until expiry minus a safety buffer
+- The client retries once after a `401` by fetching a fresh token in OAuth mode; static bearer-token mode returns the `401` directly
 - HAL pagination helpers follow `_links.next.href`
 - `429` responses use `X-RateLimit-Retry-After` or `Retry-After` when retrying
 
 ## Security
 
 - Do not commit `.env` files or Help Scout credentials.
+- Treat `HELPSCOUT_API_KEY` like a password and rotate it if it appears in logs, issues, screenshots, or chats.
 - Use a long random `HELPSCOUT_MCP_OAUTH_SECRET`.
 - Use a separate random `HELPSCOUT_MCP_OAUTH_PASSWORD`.
 - Keep writes off unless you explicitly need draft/note/snooze/tag/custom-field mutation.

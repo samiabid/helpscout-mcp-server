@@ -40,6 +40,7 @@ function liveClient(): HelpScoutClient {
   return new HelpScoutClient({
     appId: config.helpscoutAppId,
     appSecret: config.helpscoutAppSecret,
+    apiToken: config.helpscoutApiToken,
     baseUrl: config.helpscoutApiBaseUrl
   });
 }

@@ -6,8 +6,9 @@ type QueryValue = QueryPrimitive | QueryPrimitive[] | null | undefined;
 export type QueryParams = Record<string, QueryValue>;
 
 export interface HelpScoutClientOptions {
-  appId: string;
-  appSecret: string;
+  appId?: string;
+  appSecret?: string;
+  apiToken?: string;
   baseUrl?: string;
   tokenSafetyWindowMs?: number;
   maxRateLimitRetries?: number;
@@ -56,8 +57,9 @@ interface RequestOptions {
 const DEFAULT_BASE_URL = "https://api.helpscout.net/v2";
 
 export class HelpScoutClient {
-  private readonly appId: string;
-  private readonly appSecret: string;
+  private readonly appId?: string;
+  private readonly appSecret?: string;
+  private readonly apiToken?: string;
   private readonly baseUrl: string;
   private readonly tokenSafetyWindowMs: number;
   private readonly maxRateLimitRetries: number;
@@ -69,6 +71,7 @@ export class HelpScoutClient {
   constructor(options: HelpScoutClientOptions) {
     this.appId = options.appId;
     this.appSecret = options.appSecret;
+    this.apiToken = normalizeBearerToken(options.apiToken);
     this.baseUrl = stripTrailingSlash(options.baseUrl || DEFAULT_BASE_URL);
     this.tokenSafetyWindowMs = options.tokenSafetyWindowMs ?? 60_000;
     this.maxRateLimitRetries = options.maxRateLimitRetries ?? 1;
@@ -78,6 +81,10 @@ export class HelpScoutClient {
   }
 
   async getAccessToken(): Promise<string> {
+    if (this.apiToken) {
+      return this.apiToken;
+    }
+
     if (this.cachedToken && this.cachedToken.expiresAtMs - this.tokenSafetyWindowMs > this.now()) {
       return this.cachedToken.accessToken;
     }
@@ -243,6 +250,10 @@ export class HelpScoutClient {
   }
 
   private async fetchAccessToken(): Promise<CachedToken> {
+    if (!this.appId || !this.appSecret) {
+      throw new Error("Help Scout OAuth client credentials are not configured.");
+    }
+
     const url = this.resolveUrl("oauth2/token");
     const body = new URLSearchParams({
       grant_type: "client_credentials",
@@ -312,7 +323,7 @@ export class HelpScoutClient {
 
     const parsed = parseBody(response);
 
-    if (response.statusCode === 401 && attempts.authRetries < 1) {
+    if (!this.apiToken && response.statusCode === 401 && attempts.authRetries < 1) {
       this.clearAccessToken();
       return this.request<T>(method, path, options, {
         ...attempts,
@@ -483,4 +494,13 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function stripTrailingSlash(value: string): string {
   return value.replace(/\/+$/, "");
+}
+
+function normalizeBearerToken(value: string | undefined): string | undefined {
+  const trimmed = value?.trim();
+  if (!trimmed) {
+    return undefined;
+  }
+
+  return trimmed.replace(/^Bearer\s+/i, "");
 }
