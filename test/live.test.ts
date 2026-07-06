@@ -41,6 +41,7 @@ function liveClient(): HelpScoutClient {
     appId: config.helpscoutAppId,
     appSecret: config.helpscoutAppSecret,
     apiToken: config.helpscoutApiToken,
+    refreshToken: config.helpscoutRefreshToken,
     baseUrl: config.helpscoutApiBaseUrl
   });
 }

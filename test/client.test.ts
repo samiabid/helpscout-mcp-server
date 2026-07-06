@@ -67,6 +67,67 @@ describe("HelpScoutClient", () => {
     expect(nock.isDone()).toBe(true);
   });
 
+  it("uses a configured refresh token to fetch access tokens", async () => {
+    const client = createClient({ refreshToken: "refresh-token-1" });
+
+    nock(origin)
+      .post(
+        "/v2/oauth2/token",
+        /grant_type=refresh_token&refresh_token=refresh-token-1&client_id=app-id&client_secret=app-secret/
+      )
+      .reply(200, {
+        ...token("refreshed-access-token"),
+        refresh_token: "refresh-token-2"
+      });
+
+    nock(origin)
+      .get("/v2/users/me")
+      .matchHeader("authorization", "Bearer refreshed-access-token")
+      .reply(200, { id: 1 });
+
+    expect((await client.whoami()).data).toEqual({ id: 1 });
+    expect(nock.isDone()).toBe(true);
+  });
+
+  it("keeps a rotated refresh token in memory for the next token refresh", async () => {
+    let now = 0;
+    const client = createClient({
+      refreshToken: "refresh-token-1",
+      now: () => now,
+      tokenSafetyWindowMs: 60_000
+    });
+
+    nock(origin)
+      .post(
+        "/v2/oauth2/token",
+        /grant_type=refresh_token&refresh_token=refresh-token-1&client_id=app-id&client_secret=app-secret/
+      )
+      .reply(200, {
+        ...token("first-access-token", 120),
+        refresh_token: "refresh-token-2"
+      })
+      .get("/v2/users/me")
+      .matchHeader("authorization", "Bearer first-access-token")
+      .reply(200, { id: 1 })
+      .post(
+        "/v2/oauth2/token",
+        /grant_type=refresh_token&refresh_token=refresh-token-2&client_id=app-id&client_secret=app-secret/
+      )
+      .reply(200, {
+        ...token("second-access-token", 120),
+        refresh_token: "refresh-token-3"
+      })
+      .get("/v2/users/me")
+      .matchHeader("authorization", "Bearer second-access-token")
+      .reply(200, { id: 1 });
+
+    await client.whoami();
+    now = 61_000;
+    await client.whoami();
+
+    expect(nock.isDone()).toBe(true);
+  });
+
   it("refreshes the access token when the cached token is inside the safety window", async () => {
     let now = 0;
     const client = createClient({ now: () => now, tokenSafetyWindowMs: 60_000 });

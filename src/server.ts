@@ -15,6 +15,7 @@ export function createHelpScoutMcpServer(options: CreateHelpScoutMcpServerOption
       appId: options.config.helpscoutAppId,
       appSecret: options.config.helpscoutAppSecret,
       apiToken: options.config.helpscoutApiToken,
+      refreshToken: options.config.helpscoutRefreshToken,
       baseUrl: options.config.helpscoutApiBaseUrl
     });
 
@@ -44,6 +45,7 @@ export function createSharedHelpScoutClient(config: HelpScoutMcpConfig): HelpSco
     appId: config.helpscoutAppId,
     appSecret: config.helpscoutAppSecret,
     apiToken: config.helpscoutApiToken,
+    refreshToken: config.helpscoutRefreshToken,
     baseUrl: config.helpscoutApiBaseUrl
   });
 }

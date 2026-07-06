@@ -34,9 +34,43 @@ describe("loadConfig Help Scout auth", () => {
     expect(config.helpscoutAppSecret).toBe("app-secret");
   });
 
+  it("supports OAuth refresh-token mode", () => {
+    const config = loadConfig({
+      HELPSCOUT_AUTH_MODE: "oauth_refresh_token",
+      HELPSCOUT_API_KEY: "ignored-static-token",
+      HELPSCOUT_CLIENT_ID: "client-id",
+      HELPSCOUT_CLIENT_SECRET: "client-secret",
+      HELPSCOUT_REFRESH_TOKEN: "refresh-token"
+    });
+
+    expect(config.helpscoutAuthMode).toBe("oauth_refresh_token");
+    expect(config.helpscoutAppId).toBe("client-id");
+    expect(config.helpscoutAppSecret).toBe("client-secret");
+    expect(config.helpscoutApiToken).toBeUndefined();
+    expect(config.helpscoutRefreshToken).toBe("refresh-token");
+  });
+
+  it("infers OAuth refresh-token mode when a refresh token is configured", () => {
+    const config = loadConfig({
+      HELPSCOUT_APP_ID: "app-id",
+      HELPSCOUT_APP_SECRET: "app-secret",
+      HELPSCOUT_REFRESH_TOKEN: "refresh-token"
+    });
+
+    expect(config.helpscoutAuthMode).toBe("oauth_refresh_token");
+  });
+
   it("requires a token when static bearer-token mode is explicit", () => {
     expect(() => loadConfig({
       HELPSCOUT_AUTH_MODE: "static_token"
     })).toThrow("HELPSCOUT_API_KEY is required");
+  });
+
+  it("requires OAuth credentials and a refresh token in refresh-token mode", () => {
+    expect(() => loadConfig({
+      HELPSCOUT_AUTH_MODE: "oauth_refresh_token",
+      HELPSCOUT_APP_ID: "app-id",
+      HELPSCOUT_APP_SECRET: "app-secret"
+    })).toThrow("HELPSCOUT_APP_ID, HELPSCOUT_APP_SECRET, and HELPSCOUT_REFRESH_TOKEN are required");
   });
 });

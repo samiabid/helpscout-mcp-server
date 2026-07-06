@@ -9,6 +9,7 @@ export interface HelpScoutClientOptions {
   appId?: string;
   appSecret?: string;
   apiToken?: string;
+  refreshToken?: string;
   baseUrl?: string;
   tokenSafetyWindowMs?: number;
   maxRateLimitRetries?: number;
@@ -46,6 +47,7 @@ interface TokenResponse {
   access_token: string;
   token_type: string;
   expires_in: number;
+  refresh_token?: string;
 }
 
 interface RequestOptions {
@@ -60,6 +62,7 @@ export class HelpScoutClient {
   private readonly appId?: string;
   private readonly appSecret?: string;
   private readonly apiToken?: string;
+  private refreshToken?: string;
   private readonly baseUrl: string;
   private readonly tokenSafetyWindowMs: number;
   private readonly maxRateLimitRetries: number;
@@ -72,8 +75,9 @@ export class HelpScoutClient {
     this.appId = options.appId;
     this.appSecret = options.appSecret;
     this.apiToken = normalizeBearerToken(options.apiToken);
+    this.refreshToken = options.refreshToken?.trim() || undefined;
     this.baseUrl = stripTrailingSlash(options.baseUrl || DEFAULT_BASE_URL);
-    this.tokenSafetyWindowMs = options.tokenSafetyWindowMs ?? 60_000;
+    this.tokenSafetyWindowMs = options.tokenSafetyWindowMs ?? 12 * 60 * 60 * 1000;
     this.maxRateLimitRetries = options.maxRateLimitRetries ?? 1;
     this.maxRateLimitRetryDelayMs = options.maxRateLimitRetryDelayMs ?? 15_000;
     this.now = options.now || Date.now;
@@ -255,11 +259,19 @@ export class HelpScoutClient {
     }
 
     const url = this.resolveUrl("oauth2/token");
-    const body = new URLSearchParams({
-      grant_type: "client_credentials",
-      client_id: this.appId,
-      client_secret: this.appSecret
-    }).toString();
+    const params = new URLSearchParams();
+
+    if (this.refreshToken) {
+      params.set("grant_type", "refresh_token");
+      params.set("refresh_token", this.refreshToken);
+    } else {
+      params.set("grant_type", "client_credentials");
+    }
+
+    params.set("client_id", this.appId);
+    params.set("client_secret", this.appSecret);
+
+    const body = params.toString();
 
     const response = await rawHttpRequest({
       method: "POST",
@@ -287,6 +299,10 @@ export class HelpScoutClient {
         headers: response.headers,
         rateLimit: parseRateLimit(response.headers)
       });
+    }
+
+    if (tokenResponse.refresh_token) {
+      this.refreshToken = tokenResponse.refresh_token;
     }
 
     return {

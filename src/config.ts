@@ -1,12 +1,13 @@
 export type TransportMode = "stdio" | "http";
 export type LogLevel = "debug" | "info" | "warn" | "error";
-export type HelpScoutAuthMode = "oauth_client_credentials" | "static_token";
+export type HelpScoutAuthMode = "oauth_client_credentials" | "oauth_refresh_token" | "static_token";
 
 export interface HelpScoutMcpConfig {
   helpscoutAuthMode: HelpScoutAuthMode;
   helpscoutAppId?: string;
   helpscoutAppSecret?: string;
   helpscoutApiToken?: string;
+  helpscoutRefreshToken?: string;
   helpscoutApiBaseUrl: string;
   enableWrites: boolean;
   httpHost: string;
@@ -30,9 +31,21 @@ export function loadConfig(
     env.HELPSCOUT_API_TOKEN,
     env.HELPSCOUT_ACCESS_TOKEN
   );
-  const helpscoutAuthMode = parseHelpScoutAuthMode(env.HELPSCOUT_AUTH_MODE, helpscoutApiToken);
-  const helpscoutAppId = env.HELPSCOUT_APP_ID?.trim() || undefined;
-  const helpscoutAppSecret = env.HELPSCOUT_APP_SECRET?.trim() || undefined;
+  const helpscoutRefreshToken = env.HELPSCOUT_REFRESH_TOKEN?.trim() || undefined;
+  const helpscoutAuthMode = parseHelpScoutAuthMode(env.HELPSCOUT_AUTH_MODE, {
+    staticToken: helpscoutApiToken,
+    refreshToken: helpscoutRefreshToken
+  });
+  const helpscoutAppId = firstNonEmpty(
+    env.HELPSCOUT_APP_ID,
+    env.HELPSCOUT_CLIENT_ID,
+    env.HELPSCOUT_APPLICATION_ID
+  );
+  const helpscoutAppSecret = firstNonEmpty(
+    env.HELPSCOUT_APP_SECRET,
+    env.HELPSCOUT_CLIENT_SECRET,
+    env.HELPSCOUT_APPLICATION_SECRET
+  );
   const httpToken = env.HELPSCOUT_MCP_HTTP_TOKEN?.trim() || undefined;
   const oauthEnabled = parseBoolean(env.HELPSCOUT_MCP_OAUTH_ENABLED, false);
   const oauthSecret = env.HELPSCOUT_MCP_OAUTH_SECRET?.trim() || undefined;
@@ -63,11 +76,18 @@ export function loadConfig(
     );
   }
 
+  if (helpscoutAuthMode === "oauth_refresh_token" && (!helpscoutAppId || !helpscoutAppSecret || !helpscoutRefreshToken)) {
+    throw new Error(
+      "HELPSCOUT_APP_ID, HELPSCOUT_APP_SECRET, and HELPSCOUT_REFRESH_TOKEN are required when HELPSCOUT_AUTH_MODE=oauth_refresh_token."
+    );
+  }
+
   return {
     helpscoutAuthMode,
     helpscoutAppId,
     helpscoutAppSecret,
-    helpscoutApiToken,
+    helpscoutApiToken: helpscoutAuthMode === "static_token" ? helpscoutApiToken : undefined,
+    helpscoutRefreshToken: helpscoutAuthMode === "oauth_refresh_token" ? helpscoutRefreshToken : undefined,
     helpscoutApiBaseUrl: stripTrailingSlash(
       env.HELPSCOUT_API_BASE_URL || "https://api.helpscout.net/v2"
     ),
@@ -93,10 +113,17 @@ function parseBoolean(value: string | undefined, fallback: boolean): boolean {
   return ["1", "true", "yes", "on"].includes(value.toLowerCase());
 }
 
-function parseHelpScoutAuthMode(value: string | undefined, token: string | undefined): HelpScoutAuthMode {
+function parseHelpScoutAuthMode(
+  value: string | undefined,
+  credentials: { staticToken: string | undefined; refreshToken: string | undefined }
+): HelpScoutAuthMode {
   const normalized = value?.trim().toLowerCase();
   if (!normalized) {
-    return token ? "static_token" : "oauth_client_credentials";
+    if (credentials.refreshToken) {
+      return "oauth_refresh_token";
+    }
+
+    return credentials.staticToken ? "static_token" : "oauth_client_credentials";
   }
 
   if (["static_token", "api_key", "access_token", "bearer"].includes(normalized)) {
@@ -105,6 +132,10 @@ function parseHelpScoutAuthMode(value: string | undefined, token: string | undef
 
   if (["oauth_client_credentials", "oauth", "client_credentials"].includes(normalized)) {
     return "oauth_client_credentials";
+  }
+
+  if (["oauth_refresh_token", "refresh_token", "authorization_code"].includes(normalized)) {
+    return "oauth_refresh_token";
   }
 
   throw new Error(`Invalid HELPSCOUT_AUTH_MODE: ${value}`);
